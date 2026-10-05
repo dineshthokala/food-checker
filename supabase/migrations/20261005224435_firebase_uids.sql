@@ -13,19 +13,38 @@
 --    have re-logged-in via Firebase.
 
 -- 1) Allow TEXT Firebase UIDs in id / user_id columns (idempotent).
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='id') THEN
+-- Drop FKs that pin these columns to UUID first (e.g. profiles.id -> auth.users.id,
+-- child user_id -> profiles.id), then alter. FK names vary, so drop dynamically.
+DO $$ DECLARE c record; BEGIN
+  FOR c IN
+    SELECT con.conname, rel.relname AS tbl, nsp.nspname AS schema
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+    WHERE con.contype = 'f'
+      AND (
+        (rel.relname = 'profiles' AND pg_get_constraintdef(con.oid) ILIKE '%(id)%')
+        OR (rel.relname IN ('user_conditions','user_allergies','user_medications','saved_foods','food_decisions','food_reports')
+            AND pg_get_constraintdef(con.oid) ILIKE '%(user_id)%')
+      )
+  LOOP
     BEGIN
-      ALTER TABLE public.profiles ALTER COLUMN id TYPE text USING id::text;
+      EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT IF EXISTS %I', c.schema, c.tbl, c.conname);
     EXCEPTION WHEN others THEN NULL;
     END;
+  END LOOP;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='id') THEN
     BEGIN
       ALTER TABLE public.profiles ALTER COLUMN id DROP DEFAULT;
     EXCEPTION WHEN others THEN NULL;
     END;
     BEGIN
-      ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
-    EXCEPTION WHEN others THEN NULL;
+      ALTER TABLE public.profiles ALTER COLUMN id TYPE text USING id::text;
+    EXCEPTION WHEN others THEN
+      RAISE NOTICE 'profiles.id alter skipped: %', SQLERRM;
     END;
   END IF;
 END $$;
@@ -36,7 +55,8 @@ DO $$ DECLARE r record; BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=r.table_name AND column_name='user_id') THEN
       BEGIN
         EXECUTE format('ALTER TABLE public.%I ALTER COLUMN user_id TYPE text USING user_id::text', r.table_name);
-      EXCEPTION WHEN others THEN NULL;
+      EXCEPTION WHEN others THEN
+        RAISE NOTICE '% user_id alter skipped', r.table_name;
       END;
     END IF;
   END LOOP;
@@ -52,9 +72,8 @@ CREATE INDEX IF NOT EXISTS idx_food_decisions_user_id ON public.food_decisions (
 CREATE INDEX IF NOT EXISTS idx_food_reports_user_id ON public.food_reports (user_id);
 
 -- 3) RLS: enable + recreate policies for Firebase JWT sub (+ legacy uid fallback).
--- Helper predicate (inlined per policy for performance):
---   (select auth.jwt() ->> 'sub') = <owner_col>
---   OR (select auth.uid())::text = <owner_col>
+-- Owner columns are cast to ::text so policies work whether the column is
+-- still UUID (alter skipped) or already TEXT. Never compare text = uuid directly.
 
 -- profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -68,26 +87,26 @@ DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "profiles_select_own" ON public.profiles FOR SELECT
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = id
-  OR (select auth.uid())::text = id
+  (select auth.jwt() ->> 'sub') = id::text
+  OR (select auth.uid())::text = id::text
 );
 
 CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT
 TO authenticated
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = id
-  OR (select auth.uid())::text = id
+  (select auth.jwt() ->> 'sub') = id::text
+  OR (select auth.uid())::text = id::text
 );
 
 CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = id
-  OR (select auth.uid())::text = id
+  (select auth.jwt() ->> 'sub') = id::text
+  OR (select auth.uid())::text = id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = id
-  OR (select auth.uid())::text = id
+  (select auth.jwt() ->> 'sub') = id::text
+  OR (select auth.uid())::text = id::text
 );
 
 -- user_conditions
@@ -96,12 +115,12 @@ DROP POLICY IF EXISTS "user_conditions_all_own" ON public.user_conditions;
 CREATE POLICY "user_conditions_all_own" ON public.user_conditions FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );
 
 -- user_allergies
@@ -110,12 +129,12 @@ DROP POLICY IF EXISTS "user_allergies_all_own" ON public.user_allergies;
 CREATE POLICY "user_allergies_all_own" ON public.user_allergies FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );
 
 -- user_medications
@@ -124,12 +143,12 @@ DROP POLICY IF EXISTS "user_medications_all_own" ON public.user_medications;
 CREATE POLICY "user_medications_all_own" ON public.user_medications FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );
 
 -- saved_foods
@@ -138,12 +157,12 @@ DROP POLICY IF EXISTS "saved_foods_all_own" ON public.saved_foods;
 CREATE POLICY "saved_foods_all_own" ON public.saved_foods FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );
 
 -- food_decisions
@@ -152,12 +171,12 @@ DROP POLICY IF EXISTS "food_decisions_all_own" ON public.food_decisions;
 CREATE POLICY "food_decisions_all_own" ON public.food_decisions FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );
 
 -- food_reports
@@ -166,10 +185,10 @@ DROP POLICY IF EXISTS "food_reports_all_own" ON public.food_reports;
 CREATE POLICY "food_reports_all_own" ON public.food_reports FOR ALL
 TO authenticated
 USING (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 )
 WITH CHECK (
-  (select auth.jwt() ->> 'sub') = user_id
-  OR (select auth.uid())::text = user_id
+  (select auth.jwt() ->> 'sub') = user_id::text
+  OR (select auth.uid())::text = user_id::text
 );

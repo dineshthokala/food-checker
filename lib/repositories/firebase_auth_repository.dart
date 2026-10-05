@@ -233,9 +233,11 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   Future<UserProfile> _fetchProfile(String uid, {String? email, String? name}) async {
+    // Separate queries (no embedded join) so this works even when the
+    // FK relationships are missing from the PostgREST schema cache (PGRST200).
     final data = await _supabase
         .from('profiles')
-        .select('*, user_conditions(condition), user_allergies(allergy), user_medications(medication)')
+        .select('*')
         .eq('id', uid)
         .maybeSingle();
 
@@ -248,12 +250,33 @@ class FirebaseAuthRepository implements AuthRepository {
       );
     }
 
-    final conditions =
-        (data['user_conditions'] as List?)?.map((c) => c['condition'] as String).toList() ?? [];
-    final allergies =
-        (data['user_allergies'] as List?)?.map((a) => a['allergy'] as String).toList() ?? [];
-    final medications =
-        (data['user_medications'] as List?)?.map((m) => m['medication'] as String).toList() ?? [];
+    List<String> conditions = [];
+    List<String> allergies = [];
+    List<String> medications = [];
+    try {
+      final c = await _supabase
+          .from('user_conditions')
+          .select('condition')
+          .eq('user_id', uid);
+      conditions =
+          (c as List).map((e) => (e as Map)['condition'] as String).toList();
+    } catch (_) {}
+    try {
+      final a = await _supabase
+          .from('user_allergies')
+          .select('allergy')
+          .eq('user_id', uid);
+      allergies =
+          (a as List).map((e) => (e as Map)['allergy'] as String).toList();
+    } catch (_) {}
+    try {
+      final m = await _supabase
+          .from('user_medications')
+          .select('medication')
+          .eq('user_id', uid);
+      medications =
+          (m as List).map((e) => (e as Map)['medication'] as String).toList();
+    } catch (_) {}
 
     return UserProfile(
       id: data['id'] as String,

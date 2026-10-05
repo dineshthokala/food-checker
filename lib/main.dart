@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/env.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,9 +22,11 @@ void main() async {
   NetworkMonitor.init();
 
   // Firebase is the auth source of truth (Option A).
-  // Requires google-services.json (Android) / GoogleService-Info.plist (iOS)
-  // from the Firebase console. See FIREBASE_SETUP notes.
-  await Firebase.initializeApp();
+  // Config lives in lib/firebase_options.dart (flutterfire-style).
+  // Android uses google-services.json values; add iOS/Web there when needed.
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Supabase Postgres is accessed with the Firebase ID token
   // (Dashboard > Auth > Third-Party Auth > Firebase).

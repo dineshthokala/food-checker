@@ -1,0 +1,82 @@
+#1  i want to create an app that will be used by users who have diseases/medical conditions. the users will use this application to check for foods that good for them or not. and also get to know alternatives an in general get to know what kind of foods are good for them. this will help the users with diseases/medical conditions at their initial stages to avoid or control/keep in check with the diseases/medical conditions they are having.
+
+#2 first things first - login screen, registration/onboarding screen to note down, medical conditions, body measurement (height, weight), age, gender, ethnicity, blood group, food diet type ( Indian, American, Mediterranean, Korean, Chinese, Japanese) things to get an understanding of the user and their medical conditions.
+
+#3 After the onboarding process is done, the user will be taken to the home screen. This home screen is where the user can search for any food item and get to know about the food item. the food item could be anything - fruits, vegetables, meat, etc. This food checker should give a response based on the user's medical conditions, body measurement, age, gender, ethnicity, blood group, and the food item the user searched for... in short sentences
+
+#4 this is not a food tracker that an user needs to login what they are eating everyday. this app should be used by users who want to check for foods that are good for them or not.  
+
+#5 there should be a report button under these information to report the result if it is a false positive or false negative or incorrect information or anything the user can report to us. And we should be able to get notified about it. 
+
+#6 2 buttons to the user, after they have searched it - these 2 buttons should show that - you still want to eat? and another button called "no i wont' eat". whatever buttons they press, we need log them with date, time, food along with the condition. show a confirmation message for yes i want to eat option and a congeagulating message if the user selects no i dont wnt to eat
+
+#7 we need to use the best packages, feature implementations, and latest versions of them to create this application. this application should be highly optimized for performance and user experience. the user experience should be seamless and intuitive. 
+
+#8 for the information part, we need to explore all the possible ways to get the accurate information from easiest to the most accurate information logic. eg, llms, web scraping, ai, etc. the information should be accurate and up-to-date.
+
+A saved "my safe foods" list
+
+State management	flutter_riverpod (3.x)
+Navigation	go_router
+Backend, auth, DB	supabase_flutter (email, Google and Apple sign-in, Postgres, row-level security, Edge Functions)
+Models	freezed + json_serializable
+Connectivity	connectivity_plus
+Crash reporting	sentry_flutter or firebase_crashlytics
+Polish	flutter_animate, confetti (for the "no, I won't eat" celebration), skeletonizer (loading states)
+
+Screen flow
+
+Splash → Login/Register → multi-step Onboarding → Home (food search) → Result → Report / "Still want to eat?" buttons.
+
+Break onboarding into 3 to 4 short steps with a progress bar (conditions, body measurements, personal details), and save each step as you go so nobody loses progress. Since this is a health app, I'd also add allergies and current medications (or at least "blood thinners" and "diabetes medication"). These change food advice more than most other fields.
+
+Data model (Supabase)
+profiles: user id, age, gender, height, weight, ethnicity, blood group
+user_conditions: user id, condition
+food_decisions: user id, food, conditions snapshot, decision (will_eat / wont_eat), timestamp
+food_reports: user id, food, report type (false positive, false negative, incorrect info, other), comment, and a full snapshot of what the app showed (profile snapshot, verdict, text, model version, sources)
+food_cache: normalized food + profile bucket → verdict and text
+
+Enable row-level security so users only see their own rows. Store the snapshot in reports, because you can't investigate a complaint without knowing exactly what was shown.
+
+Report notifications: a Supabase database trigger or webhook on food_reports calls an Edge Function that posts to Slack, Telegram, or email. That's about an hour of work and needs no app changes.
+
+Getting accurate food information (your point #8)
+
+From easiest to most accurate:
+
+Level	Approach	Accuracy	Notes
+1	LLM alone with structured JSON output	Low to medium	Fast to build, but can hallucinate confidently
+2	LLM + live web search	Medium	Adds freshness and citations, but web quality varies
+3	LLM + retrieval over trusted sources (USDA FoodData Central, IFCT, ADA/DASH/KDIGO/ICMR-NIN guidelines)	Medium to high	Answers grounded in vetted text
+4	Nutrient database + rule engine, with the LLM only phrasing the short sentences	High, auditable	Same food gives the same verdict every time
+5	Level 4 with rules reviewed by a dietitian, plus verified verdicts cached	Highest	What you promote answers to over time
+
+Web scraping is the weakest option. It's brittle, often against site terms, and quality is inconsistent. Prefer APIs and open datasets.
+
+My recommendation is a hybrid. Launch with Level 3 (retrieval-grounded LLM) so you have coverage on day one, cache every answer, and use your report button and a dietitian to steadily promote frequent foods to Level 4/5. Two hard rules apply:
+
+LLM calls go through a Supabase Edge Function, never directly from the app, so the API key can't be extracted.
+The model returns structured JSON (verdict, 2 to 3 short sentences, portion tip, alternatives), so the UI is consistent and you can validate the output before showing it.
+Two things I'd push back on
+Blood group: collect it if you want it for the profile, but I wouldn't let it influence verdicts. The "blood type diet" idea has weak scientific support, and using it could make advice less accurate.
+Ethnicity: this is genuinely useful. For example, risk thresholds for diabetes and BMI differ for South Asian populations, and it helps with regional food coverage.
+Compliance and store review
+Use cautious wording in results ("generally advised to limit") plus a visible "not medical advice" note.
+Health apps get closer scrutiny at App Store review, and Apple requires in-app account deletion whenever you offer account creation. Build that in early.
+You're storing health data linked to identity. Get explicit consent at onboarding and write a privacy policy that covers it.
+Performance and UX
+Debounced search with local autocomplete from a foods table, so most searches don't need an AI call
+Cache hits return instantly, and a skeleton loader covers the rest
+Keep answers to 2 to 3 sentences, with the verdict badge (Good / Limit / Avoid) shown first
+Cache recent searches for offline viewing
+Keep the "yes" confirmation non-judgmental (a portion tip works better than a scolding), and make the "no" celebration short and warm
+Suggested build order
+Project setup: architecture, theme, routing, Supabase connection
+Auth and onboarding screens with saved progress
+Home search, result screen, and the Edge Function (starting with Level 3)
+Decision buttons and logging, then report button and notifications
+Dietitian review of rules, then testing
+
+
+these are the initial features or working of the applicaton at starting for now. later we will add more features to the application. but for now we need to focus on getting these features right.

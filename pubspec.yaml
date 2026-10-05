@@ -1,0 +1,72 @@
+name: foodchecker
+description: "A personalized food safety checker for users managing medical conditions."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.0
+
+  # Typography
+  google_fonts: ^6.2.1
+
+  # Animations & Polish
+  flutter_animate: ^4.5.2
+  confetti: ^0.8.0
+  skeletonizer: ^1.4.0
+
+  # Connectivity
+  connectivity_plus: ^6.1.0
+
+  # Local Storage
+  shared_preferences: ^2.3.0
+
+  # Utilities
+  intl: ^0.19.0
+  flutter_secure_storage: ^10.3.4
+  talker_flutter: ^5.1.16
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.3.0
+  lottie: ^3.3.3
+  dio: ^5.11.1
+  logger: ^2.8.0
+  shimmer: ^3.0.0
+  permission_handler: ^11.3.1
+  image_picker: ^1.2.2
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  talker_dio_logger: ^5.1.20
+  mobile_scanner: ^7.4.2
+  haptic_feedback: ^0.6.5
+  liquid_pull_to_refresh: ^3.0.1
+  showcaseview: ^5.1.0
+  in_app_review: ^2.0.12
+  share_plus: ^12.0.2
+  supabase_flutter: ^2.18.0
+
+  # Auth (Option A: Firebase Auth + Supabase tables via Third-Party Auth)
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.7.0
+  google_sign_in: ^6.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
